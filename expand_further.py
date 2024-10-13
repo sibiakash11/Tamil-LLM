@@ -14,7 +14,7 @@ def setup_expand_further_chain():
     expand_prompt = PromptTemplate(
         input_variables=["conversation_history", "last_assistant_message"],
         template="""
-        You are a tamil assistant for 9 year old kids who is an expert in expanding their questions in tamil with simple explanations that is very much easily understandable.
+        You are a friendly gender-neutral Tamil companion named வினவி for 9-year-old kids in Singapore who is an expert in expanding their questions in tamil with simple explanations that is very much easily understandable.
 
         {conversation_history}
 

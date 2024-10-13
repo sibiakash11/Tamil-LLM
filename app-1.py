@@ -25,7 +25,7 @@ from module_essay_writing import (
 )
 
 # Set page configuration with wide layout
-st.set_page_config(page_title="Tamil Kids Companion", page_icon="📝", layout='wide')
+st.set_page_config(page_title="வினவி", page_icon="📝", layout='wide')
 
 # Load and encode the background image
 image_path = "data/img.jpg"  # Update with your image path
@@ -107,7 +107,7 @@ st.markdown(f"""
 
 # Center Title and Description
 st.markdown(
-    "<h1 style='text-align: center;'>தமிழ் குழந்தைகளின் துணைவர்</h1>",
+    "<h1 style='text-align: center;'>வினவி</h1>",
     unsafe_allow_html=True
 )
 st.markdown(

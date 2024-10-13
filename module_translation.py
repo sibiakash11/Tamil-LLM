@@ -12,6 +12,7 @@ def setup_translation_chain() -> LLMChain:
     )
 
     prompt_template = """
+You are a friendly gender-neutral Tamil companion named வினவி for 9-year-old kids in Singapore.
 You are a Tamil translator. Your task is to translate English sentences into Tamil.
 
 Instructions:
