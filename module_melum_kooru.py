@@ -6,17 +6,17 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 
 def setup_melum_kooru_chain() -> ConversationChain:
-    """Sets up a memory-based conversation chain for 'Melum Kooru/Virivu paduthu' option."""
     llm = ChatOpenAI(
         model_name="gpt-4o",
         temperature=0.3,
     )
 
     prompt_template = """
-You are a friendly Tamil companion for 9-year-old kids in Singapore. Your task is to help the child understand Tamil concepts in the simplest way possible. Engage in a sequential conversation, guiding the child step by step. Use a chain-of-thought mechanism to break down complex ideas.
+You are a friendly gender-neutral Tamil companion named வினவி who is an expert in helping out with explaining information in simple tamil in 8-15 words that is very much easily understandable.
+ Your task is to help the child understand Tamil concepts in the simplest way possible. Engage in a sequential conversation, guiding the child step by step. Use a chain-of-thought mechanism to break down complex ideas.
 
 Instructions:
-1. Read the child's input carefully and respond with a simple explanation in Tamil always.
+1. Read the child's input carefully and respond with a simple explanation with just 2 bullets each within 8-15 words in Tamil always. Add line break to each bullet point.
 2. Use simple Tamil words and sentences, ensuring the child can understand.
 3. Encourage the child and keep the conversation empathetic and supportive.
 4. Build upon previous interactions, using memory to maintain context.

@@ -116,9 +116,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# The API key should be provided as an environment variable
 api_key = os.getenv("OPENAI_API_KEY")
-
 
 # Initialize session state variables
 if 'messages' not in st.session_state:
@@ -198,7 +196,7 @@ with st.sidebar:
     st.write("## முறை தேர்ந்தெடுக்கவும் (Select Mode)")
     mode = st.radio(
         "",
-        ("தமிழ் பயிற்சி", "கருத்தறிதல் பயிற்சி", "நிரப்புக பயிற்சி", "விரிவாக","கட்டுரை எழுதுதல் பயிற்சி"),
+        ("தமிழ் பயிற்சி", "நிரப்புக பயிற்சி", "விரிவாக"),
         disabled=st.session_state['is_processing']
     )
 
@@ -279,6 +277,8 @@ def autoplay_audio(text):
     # Remove '**' used for bold text
     cleaned_text = text.replace('**', '')
     cleaned_text = cleaned_text.replace('__', '')
+    cleaned_text = cleaned_text.replace('<br>', '')
+
 
 
     # Convert the cleaned text to speech
@@ -297,331 +297,13 @@ def autoplay_audio(text):
     """
     components.html(html_string, height=60)
 
-# Mode-specific handling
-if mode == "கருத்தறிதல் பயிற்சி":
-    # Mode-specific handling
+# Helper function to format text with bullets
+def format_with_bullets(text):
+    lines = text.strip().split('\n')
+    formatted_lines = [f"• {line.strip()}" for line in lines if line.strip()]
+    return '<br>'.join(formatted_lines)
 
-    # Function to reset Karutharithal session state
-    def reset_karutharithal_session():
-        st.session_state['karutharithal_started'] = False
-        st.session_state['karutharithal_exercise'] = None
-        st.session_state['melum_kooru_messages'] = []
-        st.session_state['messages'] = []
-        st.session_state['exercise_feedback'] = ''
-        st.session_state['user_answers'] = []
-        st.session_state['is_processing'] = False
-
-    # Callback function for starting Karutharithal exercise
-    def start_karutharithal():
-        try:
-            with st.spinner("பயிற்சி தயாராகிறது..."):
-                exercise = generate_karutharithal_exercise(api_key)
-                # Check if exercise has non-empty passage and questions
-                if not exercise.get('passage') or not exercise.get('questions'):
-                    raise ValueError("பகுதி அல்லது கேள்விகள் காலியாக உள்ளன. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.")
-                st.session_state['karutharithal_exercise'] = exercise
-                st.session_state['karutharithal_started'] = True
-        except ValueError as e:
-            # Reset the session state to initial state
-            reset_karutharithal_session()
-            #st.stop()  # Stop further execution to re-render the page
-        except Exception as e:
-           # st.error(f"பயிற்சி தயாரிப்பதில் ஒரு பிழை ஏற்பட்டது: {str(e)}")
-            # Reset the session state to initial state
-            reset_karutharithal_session()
-            #st.stop()
-
-    if not st.session_state['karutharithal_started']:
-        st.markdown(
-            "<p style='text-align: center;'>கருத்தறிதல் பயிற்சியை தொடங்குவோம். பயிற்சியை தொடங்க 'தொடங்கு' பொத்தானை அழுத்தவும்.</p>",
-            unsafe_allow_html=True
-        )
-        
-        # Center the "தொடங்கு" button using columns
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.button("தொடங்கு", key='karutharithal_start_btn', on_click=start_karutharithal)
-    else:
-        try:
-            passage = st.session_state['karutharithal_exercise']['passage']
-            questions = st.session_state['karutharithal_exercise']['questions']
-            
-            # Check if passage or questions are empty
-            if not passage or not questions:
-                raise ValueError("பகுதி அல்லது கேள்விகள் காலியாக உள்ளன. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.")
-        except (KeyError, TypeError, ValueError) as e:
-           # st.error(str(e))
-            # Reset the session state to initial state
-            reset_karutharithal_session()
-            #st.stop()  # Stop further execution to re-render the page
-        
-        st.write("### படிப்பு:")
-        st.write(passage)
-
-        # Add a "வாசிக்க" (Read Aloud) button below the "படிப்பு" section
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("வாசிக்க", key='karutharithal_read_aloud_btn'):
-                autoplay_audio(passage)
-
-        st.write("### கேள்விகள்:")
-        for idx, question in enumerate(questions):
-            st.write(f"{idx+1}. {question}")
-        
-        st.write("### உங்கள் பதில்கள்:")
-        user_answers = []
-        for idx in range(len(questions)):
-            # Text input first, then mic button next to it
-            input_col, mic_col = st.columns([5, 1])  # Input column first, then mic
-    
-            with mic_col:
-                mic_key = f'STT_karutharithal_{idx}'
-                tamil_text = speech_to_text(
-                    language='ta-IN',
-                    start_prompt="🎤",
-                    stop_prompt="🛑",
-                    key=mic_key
-                )
-                if tamil_text:
-                    st.session_state[f'karutharithal_temp_answer_{idx}'] = tamil_text  # Store in temporary state
-            
-            with input_col:
-                user_answer = st.text_input(
-                    f"பதில் {idx+1}",
-                    value=st.session_state.get(f'karutharithal_temp_answer_{idx}', ''),
-                    key=f'karutharithal_answer_{idx}'
-                )
-
-            user_answers.append(user_answer)
-
-        # Button to submit answers
-        if st.button("பதில்கள் அனுப்பவும்", key='karutharithal_submit_btn'):
-            # Validate the answers
-            st.session_state['is_processing'] = True
-            # Collect the answers
-            st.session_state['user_answers'] = user_answers
-            # Pass the answers through content moderation
-            inappropriate = False
-            for answer in user_answers:
-                if moderate_content(answer):
-                    inappropriate = True
-                    break
-            if inappropriate:
-                st.error("உங்கள் பதில்களில் தவறான அல்லது பொருத்தமற்ற உள்ளடக்கம் உள்ளது. தயவுசெய்து சரிசெய்து மீண்டும் முயற்சிக்கவும்.")
-                st.session_state['is_processing'] = False
-            else:
-                with st.spinner("உங்கள் பதில்கள் மதிப்பாய்வு செய்யப்படுகின்றன..."):
-                    # Validate the answers
-                    feedback = validate_karutharithal_answers(
-                        passage,
-                        questions,
-                        st.session_state['user_answers'],
-                        api_key
-                    )
-                    st.session_state['exercise_feedback'] = feedback
-                st.session_state['is_processing'] = False
-        
-        # Display feedback
-        if st.session_state['exercise_feedback']:
-            st.write("### மதிப்பாய்வு:")
-            st.write(st.session_state['exercise_feedback'])
-        
-          # Add a "வாசிக்க" (Read Aloud) button below the "படிப்பு" section
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button("வாசிக்க", key='karutharithal_answer_read_aloud_btn'):
-                    autoplay_audio(st.session_state['exercise_feedback'])
-
-        # Reset button to restart the exercise
-        st.write("")
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.button("புதிய பயிற்சி", key=f'karutharithal_new_exercise_btn_{st.session_state["karutharithal_started"]}', on_click=reset_karutharithal_session)
-
-elif mode == "கட்டுரை எழுதுதல் பயிற்சி":
-    # Function to reset Katturai session state
-    def reset_katturai_session():
-        st.session_state['katturai_started'] = False
-        st.session_state['katturai_step'] = 0
-        st.session_state['katturai_title'] = ''
-        st.session_state['brainstorming_qna'] = ''
-        st.session_state['essay_structure'] = ''
-        st.session_state['essay_content'] = ''
-        st.session_state['essay_feedback'] = ''
-        st.session_state['is_processing'] = False
-
-    # Function to navigate steps
-    def navigate_katturai_step(step_change):
-        st.session_state['katturai_step'] += step_change
-        st.rerun()  # Use st.rerun() instead of deprecated st.experimental_rerun()
-
-    # Function to start Katturai exercise
-    def start_katturai():
-        st.session_state['katturai_started'] = True
-        st.session_state['katturai_step'] = 1
-        st.rerun()
-
-    if not st.session_state.get('katturai_started', False):
-        st.markdown(
-            "<p style='text-align: center;'>கட்டுரை பயிற்சியை தொடங்குவோம். 'தொடங்கு' பொத்தானை அழுத்தவும்.</p>",
-            unsafe_allow_html=True
-        )
-        
-        # Center the "தொடங்கு" button using columns
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("தொடங்கு", key='katturai_start_btn'):
-                start_katturai()
-    else:
-        # Reset button to restart the exercise
-        if st.button("பயிற்சியை மீட்டமைக்கவும்", key='katturai_reset_btn'):
-            reset_katturai_session()
-            st.rerun()
-        
-        # Back navigation button
-        if st.session_state['katturai_step'] > 1:
-            if st.button("முன்பு செல்ல", key='katturai_back_btn'):
-                navigate_katturai_step(-1)
-
-        if st.session_state['katturai_step'] == 1:
-            st.write("### கட்டுரை தலைப்பு:")
-            # Text input with mic button for essay title
-            input_col, mic_col = st.columns([5, 1])
-            with mic_col:
-                mic_key = 'STT_katturai_title'
-                tamil_text = speech_to_text(
-                    language='ta-IN',
-                    start_prompt="🎤",
-                    stop_prompt="🛑",
-                    key=mic_key
-                )
-                if tamil_text:
-                    st.session_state['katturai_title'] = tamil_text  # Update session state
-
-            with input_col:
-                essay_title = st.text_input(
-                    "தலைப்பை உள்ளிடவும்:",
-                    value=st.session_state.get('katturai_title', '')
-                )
-                st.session_state['katturai_title'] = essay_title
-
-            # Next button
-            if st.button("அடுத்த படி", key='katturai_step1_next_btn') and essay_title:
-                if moderate_content(essay_title):
-                    st.error("தவறான அல்லது பொருத்தமற்ற தலைப்பு. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.")
-                    st.session_state['katturai_title'] = ''
-                else:
-                    st.session_state['is_processing'] = True
-                    st.session_state['katturai_step'] = 2
-                    st.session_state['is_processing'] = False
-                    st.rerun()
-
-        elif st.session_state['katturai_step'] == 2:
-            st.write("### நினைவாற்றல் கேள்விகள்:")
-            if not st.session_state.get('brainstorming_qna'):
-                with st.spinner("நினைவாற்றல் கேள்விகள் உருவாக்கப்படுகிறது..."):
-                    st.session_state['brainstorming_qna'] = generate_brainstorming_qna(
-                        st.session_state['katturai_title'],
-                        api_key
-                    )
-            st.write(st.session_state['brainstorming_qna'])
-
-            # Read-aloud button
-            if st.button("வாசிக்க", key='katturai_brainstorm_read_btn'):
-                autoplay_audio(st.session_state['brainstorming_qna'])
-
-            # Next button
-            if st.button("அடுத்த படி", key='katturai_step2_next_btn'):
-                st.session_state['katturai_step'] = 3
-                st.rerun()
-
-        elif st.session_state['katturai_step'] == 3:
-            st.write("### கட்டுரையின் அமைப்பு:")
-            if not st.session_state.get('essay_structure'):
-                with st.spinner("கட்டுரையின் அமைப்பு உருவாக்கப்படுகிறது..."):
-                    st.session_state['essay_structure'] = generate_essay_structure(
-                        st.session_state['katturai_title'],
-                        st.session_state['brainstorming_qna'],
-                        api_key
-                    )
-            st.write(st.session_state['essay_structure'])
-
-            # Read-aloud button
-            if st.button("வாசிக்க", key='katturai_structure_read_btn'):
-                autoplay_audio(st.session_state['essay_structure'])
-
-            # Next button
-            if st.button("அடுத்த படி", key='katturai_step3_next_btn'):
-                st.session_state['katturai_step'] = 4
-                st.rerun()
-
-        elif st.session_state['katturai_step'] == 4:
-            st.write("### கட்டுரை எழுதுதல்:")
-            st.write("கட்டுரையை 200 வார்த்தைகளுக்குள் எழுதவும். கீழே உள்ள பெட்டியில் உங்கள் கட்டுரையை உள்ளிடவும்.")
-
-            # Text area with mic button for essay content
-            input_col, mic_col = st.columns([5, 1])
-            with mic_col:
-                mic_key = 'STT_essay_content'
-                tamil_text = speech_to_text(
-                    language='ta-IN',
-                    start_prompt="🎤",
-                    stop_prompt="🛑",
-                    key=mic_key
-                )
-                if tamil_text:
-                    st.session_state['essay_content'] = tamil_text  # Update session state
-
-            with input_col:
-                essay_content = st.text_area(
-                    "கட்டுரை:",
-                    value=st.session_state.get('essay_content', ''),
-                    height=200
-                )
-                st.session_state['essay_content'] = essay_content
-
-            # Submit button
-            if st.button("மதிப்பாய்வு செய்ய", key='katturai_submit_btn') and essay_content:
-                if moderate_content(essay_content):
-                    st.error("தவறான அல்லது பொருத்தமற்ற உள்ளடக்கம். தயவுசெய்து மீண்டும் முயற்சிக்கவும்.")
-                    st.session_state['essay_content'] = ''
-                else:
-                    st.session_state['is_processing'] = True
-                    st.session_state['katturai_step'] = 5
-                    st.session_state['is_processing'] = False
-                    st.rerun()
-
-        elif st.session_state['katturai_step'] == 5:
-            st.write("### கட்டுரை மதிப்பாய்வு:")
-            st.write("#### உங்கள் கட்டுரை:")
-            st.write(st.session_state['essay_content'])
-
-            # Read-aloud button for essay
-            if st.button("கட்டுரையை வாசிக்க", key='katturai_essay_read_btn'):
-                autoplay_audio(st.session_state['essay_content'])
-
-            # Get feedback
-            if not st.session_state.get('essay_feedback'):
-                with st.spinner("மதிப்பாய்வு செய்யப்படுகிறது..."):
-                    st.session_state['essay_feedback'] = get_essay_feedback(
-                        st.session_state['essay_content'],
-                        api_key,
-                        st.session_state['brainstorming_qna'],
-                        st.session_state['katturai_title']
-                    )
-            st.write("#### மதிப்பாய்வு:")
-            st.write(st.session_state['essay_feedback'])
-
-            # Read-aloud button for feedback
-            if st.button("மதிப்பாய்வை வாசிக்க", key='katturai_feedback_read_btn'):
-                autoplay_audio(st.session_state['essay_feedback'])
-
-            # Finish button
-            if st.button("முடிக்கவும்", key='katturai_finish_btn'):
-                reset_katturai_session()
-                st.rerun()
-
-elif mode == "நிரப்புக பயிற்சி":
+if mode == "நிரப்புக பயிற்சி":
     # Function to reset Nirappug session state
     def reset_nirappug_session():
         st.session_state['nirappugaa_started'] = False
@@ -808,9 +490,11 @@ elif mode == "விரிவாக":
                                 {"role": "assistant", "content": answer}
                             ]
                     
+                        # Format the assistant's answer with bullets
+                        formatted_answer = format_with_bullets(answer)
                         # Append the assistant's answer to messages
-                        st.session_state['messages'].append({"role": "assistant", "content": answer})
-                        st.session_state['main_answer'] = answer  # Set main answer
+                        st.session_state['messages'].append({"role": "assistant", "content": formatted_answer})
+                        st.session_state['main_answer'] = formatted_answer  # Set main answer
                         st.session_state['melum_kooru_answers'] = []  # Clear any previous melum kooru answers
                     else:
                         st.error("தவறான விருப்பம் தேர்ந்தெடுக்கப்பட்டது.")
@@ -851,42 +535,22 @@ elif mode == "விரிவாக":
                                 "last_assistant_message": last_assistant_message
                             })
 
+                        # Format the expanded answer with bullets
+                        formatted_expanded_answer = format_with_bullets(expanded_answer)
+
                         # Add the user's "Yes" response and the assistant's expanded answer to the conversation
                         st.session_state['melum_kooru_messages'].append({"role": "user", "content": "ஆம்"})
-                        st.session_state['melum_kooru_messages'].append({"role": "assistant", "content": expanded_answer})
-                        st.session_state['messages'].append({"role": "assistant", "content": expanded_answer})
-                        st.session_state['melum_kooru_answers'].append(expanded_answer)
+                        st.session_state['melum_kooru_messages'].append({"role": "assistant", "content": formatted_expanded_answer})
+                        st.session_state['messages'].append({"role": "assistant", "content": formatted_expanded_answer})
+                        st.session_state['melum_kooru_answers'].append(formatted_expanded_answer)
                         # No need to set 'last_answer' here
 
             # Display the expanded answers below the main answer
             for expanded_answer in st.session_state['melum_kooru_answers']:
                 st.markdown(f"<div class='chat-message assistant-message'>{expanded_answer}</div>", unsafe_allow_html=True)
 
-            # # Add the pre-emptive line for "மேலும் கூரு" after each answer
-            # if st.session_state['melum_kooru_answers']:
-            #     st.markdown("<p>மேலும் அறிய 'மேலும் கூரு' பொத்தானைக் கிளிக் செய்யவும் அல்லது உங்கள் கேள்வியை உள்ளீடு செய்து அனுப்பவும்.</p>", unsafe_allow_html=True)
     else:
         st.write("")
-
-    # # Display conversation history for "விரிவாக (Virivaaga)" mode
-    # if mode == "விரிவாக (Virivaaga)":
-    #     # Display conversation history
-    #     st.write("## உரையாடல் வரலாறு")
-    #     chat_container = st.container()
-    #     with chat_container:
-    #         st.markdown("<div class='chat-history'>", unsafe_allow_html=True)
-    #         # Display conversation history in the desired format
-    #         for i in range(0, len(st.session_state['melum_kooru_messages']), 2):
-    #             # Ensure we have both user and assistant messages in a pair
-    #             if i + 1 < len(st.session_state['melum_kooru_messages']):
-    #                 user_message = st.session_state['melum_kooru_messages'][i]
-    #                 assistant_message = st.session_state['melum_kooru_messages'][i + 1]
-                    
-    #                 # Display user and assistant messages together
-    #                 st.markdown(f"<div class='chat-message user-message'><strong>நீங்கள்:</strong> {user_message['content']}</div>", unsafe_allow_html=True)
-    #                 st.markdown(f"<div class='chat-message assistant-message'><strong>உதவியாளர்:</strong> {assistant_message['content']}</div>", unsafe_allow_html=True)
-    #                 st.markdown("<div class='separator'>----------------</div>", unsafe_allow_html=True)
-    #         st.markdown("</div>", unsafe_allow_html=True)
 
 elif mode == "தமிழ் பயிற்சி":
     # Handle the "Tamil Udhavi (Tamil Assistance)" mode
@@ -954,9 +618,12 @@ elif mode == "தமிழ் பயிற்சி":
                                 st.error("தவறான விருப்பம் தேர்ந்தெடுக்கப்பட்டது.")
                                 #st.stop()
 
+                            # Format the assistant's answer with bullets
+                            formatted_answer = format_with_bullets(answer)
+
                             # Append the assistant's answer to messages
-                            st.session_state['messages'].append({"role": "assistant", "content": answer})
-                            st.session_state['last_answer'] = answer
+                            st.session_state['messages'].append({"role": "assistant", "content": formatted_answer})
+                            st.session_state['last_answer'] = formatted_answer
 
                 st.session_state['input_placeholder'] = ''  # Reset input after processing
                 st.session_state['is_processing'] = False
